@@ -187,3 +187,5 @@ SELECT CASE WHEN school_name < 'n' THEN 'a-m school'
        COUNT(1) AS player_count
   FROM benn.college_football_players
  GROUP BY school_name_group
+
+test
