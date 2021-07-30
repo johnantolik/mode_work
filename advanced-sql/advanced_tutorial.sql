@@ -327,6 +327,297 @@ SELECT incidnt_num,
   FROM tutorial.sf_crime_incidents_cleandate
  ORDER BY descript DESC
  
+# Subqueries
+
+SELECT * 
+  FROM tutorial.sf_crime_incidents_cleandate
+  
+SELECT sub.*
+  FROM (
+        SELECT *
+          FROM tutorial.sf_crime_incidents_2014_01
+         WHERE day_of_week = 'Friday'
+       ) sub
+ WHERE sub.resolution = 'NONE'
+ 
+### the below runs first
+
+SELECT *
+  FROM tutorial.sf_crime_incidents_2014_01
+ WHERE day_of_week = 'Friday'
+ 
+## Subqueries are required to have names, which are added after parentheses the same way you would add an alias to a normal table.
+
+## Practice Problem 11 : Write a query that selects all Warrant Arrests from the tutorial.sf_crime_incidents_2014_01 dataset, then wrap it in an outer query that only displays unresolved incidents.
+
+SELECT * 
+  FROM tutorial.sf_crime_incidents_2014_01
+  
+SELECT sub.*
+  FROM (
+       SELECT * 
+         FROM tutorial.sf_crime_incidents_2014_01
+        WHERE descript = 'WARRANT ARREST'
+       ) sub
+ WHERE sub.resolution = 'NONE'
+ OR sub.resolution = NULL
+ 
+## Using subqueries to aggregate in multiple stages
+
+SELECT LEFT(sub.date, 2) AS cleaned_month,
+       sub.day_of_week,
+       AVG(sub.incidents) AS average_incidents
+  FROM (
+        SELECT day_of_week,
+               date,
+               COUNT(incidnt_num) AS incidents
+          FROM tutorial.sf_crime_incidents_2014_01
+         GROUP BY 1,2
+       ) sub
+ GROUP BY 1,2
+ ORDER BY 1,2
+ 
+## Practice Problem 12 : Write a query that displays the average number of monthly incidents for each category. Hint: use tutorial.sf_crime_incidents_cleandate to make your life a little easier.
+
+SELECT * 
+  FROM tutorial.sf_crime_incidents_cleandate
+  
+SELECT sub.category,
+       AVG(sub.incident_count) AS avg_monthly_incidents
+  FROM (
+       SELECT category,
+              DATE_TRUNC('month', cleaned_date) as month,
+              COUNT(*) as incident_count
+         FROM tutorial.sf_crime_incidents_cleandate 
+        GROUP BY 1, 2
+       ) sub
+ GROUP BY 1
+ ORDER BY 1
+ 
+## Subqueries in conditional logic
+
+
+### for a single data point condition, i.e., MIN/MAX: 
+
+SELECT *
+  FROM tutorial.sf_crime_incidents_2014_01
+ WHERE Date = (SELECT MIN(date)
+                 FROM tutorial.sf_crime_incidents_2014_01
+              )
+              
+### for a set of data points: 
+
+SELECT *
+  FROM tutorial.sf_crime_incidents_2014_01
+ WHERE Date IN (SELECT date
+                 FROM tutorial.sf_crime_incidents_2014_01
+                ORDER BY date
+                LIMIT 5
+              )
+ 
+### Note that you should not include an alias when you write a subquery in a conditional statement. This is because the subquery is treated as an individual value (or set of values in the IN case) rather than as a table.
+
+## Joining subqueries
+
+SELECT *
+  FROM tutorial.sf_crime_incidents_2014_01 incidents
+  JOIN ( SELECT date
+           FROM tutorial.sf_crime_incidents_2014_01
+          ORDER BY date
+          LIMIT 5
+       ) sub
+    ON incidents.date = sub.date
+    
+SELECT incidents.*,
+       sub.incidents AS incidents_that_day
+  FROM tutorial.sf_crime_incidents_2014_01 incidents
+  JOIN ( SELECT date,
+          COUNT(incidnt_num) AS incidents
+           FROM tutorial.sf_crime_incidents_2014_01
+          GROUP BY 1
+       ) sub
+    ON incidents.date = sub.date
+ ORDER BY sub.incidents DESC, time
+ 
+## Practice Problem 12 : Write a query that displays all rows from the three categories with the fewest incidents reported.
+
+SELECT * 
+  FROM tutorial.sf_crime_incidents_cleandate
+  
+SELECT a.*,
+       sub.incidents_by_category
+  FROM tutorial.sf_crime_incidents_2014_01 AS a
+  JOIN (
+       SELECT category,
+              COUNT(*) AS incidents_by_category
+         FROM tutorial.sf_crime_incidents_2014_01
+        GROUP BY 1
+        ORDER BY 2
+        LIMIT 3
+       ) sub
+    ON a.category = sub.category
+    
+### Example of long query:
+    
+SELECT COALESCE(acquisitions.acquired_month, investments.funded_month) AS month,
+       COUNT(DISTINCT acquisitions.company_permalink) AS companies_acquired,
+       COUNT(DISTINCT investments.company_permalink) AS investments
+  FROM tutorial.crunchbase_acquisitions acquisitions
+  FULL JOIN tutorial.crunchbase_investments investments
+    ON acquisitions.acquired_month = investments.funded_month
+ GROUP BY 1
+ 
+### 7K+ results:
+
+SELECT COUNT(*) FROM tutorial.crunchbase_acquisitions
+
+### 83K+ results:
+
+SELECT COUNT(*) FROM tutorial.crunchbase_investments
+
+### 6.2M+ results:
+
+SELECT COUNT(*)
+      FROM tutorial.crunchbase_acquisitions acquisitions
+      FULL JOIN tutorial.crunchbase_investments investments
+        ON acquisitions.acquired_month = investments.funded_month
+        
+### Improved query using subqueries:
+
+SELECT COALESCE(acquisitions.month, investments.month) AS month,
+       acquisitions.companies_acquired,
+       investments.companies_rec_investment
+  FROM (
+        SELECT acquired_month AS month,
+               COUNT(DISTINCT company_permalink) AS companies_acquired
+          FROM tutorial.crunchbase_acquisitions
+         GROUP BY 1
+       ) acquisitions
+
+  FULL JOIN (
+        SELECT funded_month AS month,
+               COUNT(DISTINCT company_permalink) AS companies_rec_investment
+          FROM tutorial.crunchbase_investments
+         GROUP BY 1
+       )investments
+
+    ON acquisitions.month = investments.month
+ ORDER BY 1 DESC
+ 
+## Practice Problem 13 : Write a query that counts the number of companies founded and acquired by quarter starting in Q1 2012. Create the aggregations in two separate queries, then join them.
+
+SELECT *
+  FROM tutorial.crunchbase_companies
+  
+SELECT *
+  FROM tutorial.crunchbase_acquisitions
+  
+SELECT COALESCE(c.founded_quarter, a.acquired_quarter) AS quarter, 
+       c.count_founded_quarter,
+       a.count_acquired_quarter
+  FROM (
+       SELECT founded_quarter,
+              COUNT(permalink) AS count_founded_quarter
+         FROM tutorial.crunchbase_companies
+        WHERE founded_year >= 2012
+        GROUP BY 1
+       ) c
+  LEFT JOIN (
+            SELECT acquired_quarter,
+                   COUNT(DISTINCT company_permalink) AS count_acquired_quarter
+              FROM tutorial.crunchbase_acquisitions
+             WHERE acquired_year >= 2012
+             GROUP BY 1
+            ) a
+    ON c.founded_quarter = a.acquired_quarter
+ ORDER BY 2 DESC
+
+## Subqueries and UNION
+
+SELECT *
+  FROM tutorial.crunchbase_investments_part1
+
+ UNION ALL
+
+ SELECT *
+   FROM tutorial.crunchbase_investments_part2
+   
+### operations across whole data set:
+
+SELECT COUNT(*) AS total_rows
+  FROM (
+        SELECT *
+          FROM tutorial.crunchbase_investments_part1
+
+         UNION ALL
+
+        SELECT *
+          FROM tutorial.crunchbase_investments_part2
+       ) sub
+       
+## Practice Problem 14 : Write a query that ranks investors from the combined dataset above by the total number of investments they have made.
+
+SELECT *
+  FROM tutorial.crunchbase_investments_part1
+  
+SELECT t.investor_permalink,
+       t.investor_name,
+       COUNT(*) AS count_investment
+  FROM (
+       SELECT *
+         FROM tutorial.crunchbase_investments_part1
+        
+        UNION ALL
+        
+        SELECT * 
+          FROM tutorial.crunchbase_investments_part2
+        ) t
+ GROUP BY 1, 2
+ ORDER BY 3 DESC
+
+## Practice Problem 15 : Write a query that does the same thing as in the previous problem, except only for companies that are still operating. Hint: operating status is in tutorial.crunchbase_companies.
+
+SELECT i.investor_permalink,
+       i.investor_name,
+       COUNT(*) AS count_investment
+  FROM (
+       SELECT *
+         FROM tutorial.crunchbase_investments_part1
+        
+        UNION ALL
+        
+        SELECT * 
+          FROM tutorial.crunchbase_investments_part2
+        ) i
+  JOIN (
+       SELECT permalink,
+              status
+         FROM tutorial.crunchbase_companies
+        WHERE status = 'operating'
+       ) c
+    ON i.company_permalink = c.permalink
+ GROUP BY 1, 2
+ ORDER BY 3 DESC
+ 
+### given solution is simpler, removes subquery:
+
+SELECT investments.investor_name,
+       COUNT(investments.*) AS investments
+  FROM tutorial.crunchbase_companies companies
+  JOIN (
+        SELECT *
+          FROM tutorial.crunchbase_investments_part1
+         
+         UNION ALL
+        
+         SELECT *
+           FROM tutorial.crunchbase_investments_part2
+       ) investments
+    ON investments.company_permalink = companies.permalink
+ WHERE companies.status = 'operating'
+ GROUP BY 1
+ ORDER BY 2 DESC
+ 
 
 
 
