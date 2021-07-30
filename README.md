@@ -1,2 +1,2 @@
 # mode_exercises
- excercises complete from the mode platform
+ excercises completed from the mode platform
